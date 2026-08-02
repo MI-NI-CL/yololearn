@@ -1,0 +1,32 @@
+# ===== Python 虚拟环境 =====
+venv/
+
+# ===== C++ 编译产物 =====
+cpp_yolo/build/
+*.exe
+*.dll
+*.a
+*.obj
+
+# ===== 第三方库源码（各自有自己的 git 仓库）=====
+opencv_src/
+onnxruntime_1251/
+onnxruntime/
+
+# ===== 模型文件（大文件，用 git lfs 或单独管理）=====
+*.pt
+*.onnx
+
+# ===== 检测结果/输出 =====
+runs/
+output_cpp.jpg
+output_video.avi
+test_video.avi
+test_video.mp4
+
+# ===== 视频文件（可能超大，超过 GitHub 100MB 限制）=====
+*.mp4
+*.avi
+
+# ===== 编辑器 =====
+.vscode/

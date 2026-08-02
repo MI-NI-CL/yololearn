@@ -1,46 +1,52 @@
 # YOLO 学习指南（新手版）
 
-## 零、日常使用流程（先看这个！）
+## 零、日常使用流程（官方命令，先看这个！）
+
+> ⭐ 万能格式（记住这个框架）：
+> ```
+> yolo <任务> <动作> model=... source=... 参数=值
+> ```
+> 官方参数是 `名字=值` 写法，**没有 `--`**
 
 **检测图片**（最常用）：
 ```bash
-cd "C:\Users\21404\Desktop\打工必备\各种作业跟项目\yololearn"
-venv\Scripts\python detect.py 图片路径.jpg
+yolo predict model=yolo26n.pt source=图片路径.jpg
 ```
 
 **检测视频**：
 ```bash
-venv\Scripts\python detect.py 视频.mp4
+yolo predict model=yolo26n.pt source=视频.mp4
 ```
 
-**摄像头实时检测**（0 = 第一个摄像头）：
+**摄像头实时检测**（0 = 第一个摄像头，`show=True` 必须加才能弹窗）：
 ```bash
-venv\Scripts\python detect.py 0
+yolo predict model=yolo26n.pt source=0 show=True
 ```
 
 **换模型**（越大越准越慢）：
 ```bash
-venv\Scripts\python detect.py 图片.jpg --model yolo26s.pt   # 或 m/l/x
+yolo predict model=yolo26s.pt source=图片.jpg   # 或 m/l/x
 ```
 
 **调置信度**（过滤低质量检测）：
 ```bash
-venv\Scripts\python detect.py 图片.jpg --conf 0.5
+yolo predict model=yolo26n.pt source=图片.jpg conf=0.5
 ```
 
-**实时弹窗显示**（不存文件）：
+**只检测某一类**（classes=0 是 person，查编号用 classes=--1）：
 ```bash
-venv\Scripts\python detect.py 图片.jpg --show
+yolo predict model=yolo26n.pt source=图片.jpg classes=0
 ```
 
-结果自动保存到 `runs/detect/` 文件夹。所有参数汇总：
+结果自动保存到 `runs/detect/` 文件夹。常用参数汇总：
 
 | 参数 | 作用 | 示例 |
 |------|------|------|
-| `--model` | 换模型 | `--model yolo26m.pt` |
-| `--conf` | 置信度阈值 | `--conf 0.5` |
-| `--imgsz` | 分辨率 | `--imgsz 1024` |
-| `--show` | 弹窗实时显示 | `--show` |
+| `model=` | 换模型 | `model=yolo26m.pt` |
+| `conf=` | 置信度阈值 | `conf=0.5` |
+| `imgsz=` | 分辨率 | `imgsz=1024` |
+| `show=True` | 弹窗实时显示 | `show=True` |
+| `classes=` | 只检测某几类 | `classes=0,15` |
 
 ---
 
@@ -58,17 +64,19 @@ venv\Scripts\python detect.py 图片.jpg --show
 
 ## 二、怎么进入学习环境
 
-每次要用 YOLO，先激活虚拟环境：
+先激活虚拟环境，`yolo` 命令才能直接用：
 
 ```bash
 # 在 yololearn 目录下
 source venv/Scripts/activate
 ```
 
-或直接用完整路径（不用激活）：
+激活后（提示符前会出现 `(venv)`），就能直接敲官方命令：
 ```bash
-venv/Scripts/python 你的脚本.py
+yolo predict model=yolo26n.pt source=bus.jpg
 ```
+
+> 不激活也能用，但要带完整路径：`venv\Scripts\yolo predict model=yolo26n.pt source=bus.jpg`
 
 ## 三、什么是 YOLO（3 分钟理解）
 
@@ -86,30 +94,23 @@ YOLO = **You Only Look Once**（只看一次）。
 ## 四、学习路线图（由浅入深）
 
 ### 第 1 阶段：会用（1~2 天）
-运行 `test_yolo.py`，理解 YOLO 能干什么。
-```python
-from ultralytics import YOLO
-model = YOLO("yolo26n.pt")        # n=最小最快，适合入门
-results = model.predict("bus.jpg") # 检测
-results[0].save("output.jpg")      # 保存标注图
+用官方命令检测图片，理解 YOLO 能干什么：
+```bash
+yolo predict model=yolo26n.pt source=bus.jpg
 ```
+关键输出：`4 persons, 1 bus, 6.5ms` = 检测到 4 人 1 公交，耗时 6.5ms。
 
 ### 第 2 阶段：会换模型（1 天）
-不同模型不同权衡：
-```python
-YOLO("yolo26n.pt")   # 最快，精度一般
-YOLO("yolo26s.pt")   # 均衡
-YOLO("yolo26m.pt")   # 精度更高，稍慢
-YOLO("yolo26l.pt")   # 高精度
-YOLO("yolo26x.pt")   # 最高精度，最慢
+不同模型不同权衡（n/s/m/l/x）：
+```bash
+yolo predict model=yolo26s.pt source=bus.jpg   # 越大越准越慢
 ```
-视频检测：`model.predict("video.mp4", save=True)`
-摄像头实时：`model.predict(source=0)`（0 表示摄像头）
+- 本地没有的模型会自动从 GitHub 下载，下载一次永久使用
 
 ### 第 3 阶段：会调参数（2~3 天）
-- 置信度阈值：`predict(conf=0.5)`
-- 图像大小：`predict(imgsz=1024)`（越大越准越慢）
-- 训练时指定轮数、批次：`model.train(data="coco8.yaml", epochs=10)`
+- 置信度阈值：`conf=0.5`（默认 0.25）
+- 只检测某类：`classes=0`（查全部编号用 `classes=--1`）
+- 分辨率：`imgsz=1024`（越大越准越慢）
 
 ### 第 4 阶段：会自己训练（重点，1~2 周）
 1. **准备数据**：收集图片 → 用 [LabelImg](https://github.com/HumanSignal/labelImg) 或 [Roboflow](https://roboflow.com) 标注
@@ -121,16 +122,14 @@ YOLO("yolo26x.pt")   # 最高精度，最慢
      labels/train/  labels/val/
    ```
 4. **训练**：
-   ```python
-   from ultralytics import YOLO
-   model = YOLO("yolo26s.pt")
-   model.train(data="dataset.yaml", epochs=100, batch=8, imgsz=640)
+   ```bash
+   yolo train model=yolo26s.pt data=dataset.yaml epochs=100 batch=8 imgsz=640
    ```
-5. **验证**：`model.val()` 看 mAP 指标
-6. **推理**：`model.predict(source=图片, save=True)`
+5. **验证**：`yolo val model=runs/train/exp/weights/best.pt data=dataset.yaml` 看 mAP 指标
+6. **推理**：`yolo predict model=runs/train/exp/weights/best.pt source=图片.jpg`
 
 ### 第 5 阶段：会部署（进阶）
-- 导出模型：`model.export(format="onnx")` / `format="tensorrt"`
+- 导出模型：`yolo export model=yolo26n.pt format=onnx` / `format=tensorrt`
 - 部署到服务器、手机、边缘设备
 
 ## 五、必须掌握的 YOLO 概念

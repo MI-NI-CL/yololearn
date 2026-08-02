@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ---------- onnxruntime 路径 ----------
-set(ORT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../onnxruntime_127")
+# onnxruntime 解压在 C:\cpp_msvc_build\ort127\，用完整绝对路径避免相对路径歧义
+set(ORT_ROOT "C:/cpp_msvc_build/ort127/onnxruntime-win-x64-gpu_cuda13-1.27.0")
 set(ORT_INCLUDE_DIR "${ORT_ROOT}/include")
 set(ORT_LIB_DIR "${ORT_ROOT}/lib")
 

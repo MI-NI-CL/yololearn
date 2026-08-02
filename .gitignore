@@ -44,3 +44,7 @@ test_video.mp4
 .claude/
 屏幕截图*.png
 屏幕截图*.jpg
+
+# ===== TensorRT 引擎文件（大文件，GPU 推理用）=====
+*.engine
+

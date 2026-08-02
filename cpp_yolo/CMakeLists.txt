@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ---------- onnxruntime 路径 ----------
-set(ORT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../onnxruntime_1251/onnxruntime-win-x64-gpu-1.25.1")
+set(ORT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../onnxruntime_127")
 set(ORT_INCLUDE_DIR "${ORT_ROOT}/include")
 set(ORT_LIB_DIR "${ORT_ROOT}/lib")
 
@@ -43,10 +43,11 @@ target_link_libraries(cpp_yolo
 )
 
 # 把 onnxruntime DLL 拷贝到可执行文件旁，运行时才能找到
-# （只用 CPU 推理，不需要 CUDA/TensorRT provider DLL）
 foreach(ort_dll
     onnxruntime.dll
     onnxruntime_providers_shared.dll
+    onnxruntime_providers_cuda.dll
+    onnxruntime_providers_tensorrt.dll
 )
     add_custom_command(TARGET cpp_yolo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

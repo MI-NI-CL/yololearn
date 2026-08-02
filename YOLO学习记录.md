@@ -21,6 +21,7 @@
 | 第 10 步 | C++ 代码画检测框到图片（手写像素循环） | ✅ 完成 |
 | 第 11 步 | C++ 检测视频并输出带框视频（引入 OpenCV） | ✅ 完成 |
 | 第 12 步 | C++ 摄像头实时检测（补编译 OpenCV highgui 模块） | ✅ 完成 |
+| 第 13 步 | **C++ GPU 加速（TensorRT + MSVC，7.63ms）** | ✅ 完成 |
 
 ---
 
@@ -358,6 +359,49 @@ cpp_yolo\build\cpp_yolo.exe 0 yolo26n.onnx cpu
 ### 🔑 帧数低的原因与优化方向
 - CPU 推理每帧 ~20ms + 显示开销 → 25-30 帧/秒
 - 优化三招：GPU 推理（`gpu` 参数）/ 缩小 imgsz（320）/ 跳帧检测
+
+---
+
+*记录方式：每教一步 → 你亲手敲 → 成功 → 记入本档 ✅*
+
+---
+
+## ✅ 第 13 步：C++ GPU 加速（TensorRT + MSVC）
+
+**目标**：让 C++ 程序用 GPU 推理（从 CPU 18ms 提速）。
+
+**最终结果**：**C++ TensorRT GPU 推理 7.63ms**（成功！）
+
+### 🔑 为什么之前的方案都不行（重要经验）
+| 方案 | 结果 | 原因 |
+|------|------|------|
+| onnxruntime CUDA EP | ❌ 不支持 | **不支持 RTX 5060 (Blackwell sm_120)**，内核不含新架构 |
+| MinGW 编译 TensorRT | ❌ ABI 崩 | MinGW 与 MSVC 编译的 TensorRT 库堆不兼容 |
+| PyTorch C++ (LibTorch) | ❌ 头文件冲突 | PyTorch C++ 头文件 MinGW 下 dllimport 冲突 |
+| **MSVC + TensorRT** | ✅ **7.63ms** | 官方支持路径 |
+
+### 🔑 关键结论
+- **onnxruntime 的 CUDA 加速器还不支持 RTX 5060**（新显卡），PyTorch 和 TensorRT 支持
+- **C++ GPU 的正确路径**：**TensorRT + MSVC 编译**（不能 MinGW）
+- TensorRT 需装完整 SDK（含 NvInfer.h + nvinfer_11.lib），要 NVIDIA 账号
+
+### 🔑 环境配置
+- CUDA Toolkit 13.3（官方安装，`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3`）
+- TensorRT 11.2.1 SDK（解压到 `C:\cpp_msvc_build\tensorrt`）
+- 用 MSVC 编译（vcvars64 + cl + link），链接 `nvinfer_11.lib` + `cudart.lib`
+
+### 🔑 性能对比
+| 方案 | 耗时 |
+|------|------|
+| **C++ TensorRT (MSVC)** | **7.63ms** |
+| Python TensorRT | 10ms |
+| Python PyTorch GPU | 10.85ms |
+| C++ CPU | 18ms |
+
+### 🔑 程序位置
+- 源码：`C:\cpp_msvc_build\tensorrt_yolo.cpp`
+- MSVC 版 exe：`C:\cpp_msvc_build\tensorrt_yolo_msvc.exe`
+- 运行：`tensorrt_yolo_msvc.exe yolo26n_sdk.engine 图片.jpg`
 
 ---
 

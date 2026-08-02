@@ -122,9 +122,10 @@ int main(int argc, char* argv[]) {
     };
 
     // 创建 onnxruntime 环境 + session（图片和视频共用）
-    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "yolo");
+    Ort::Env env(ORT_LOGGING_LEVEL_VERBOSE, "yolo");
     Ort::SessionOptions session_options;
     session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+    session_options.SetLogSeverityLevel(0);  // VERBOSE：看节点分配到哪个 EP
 
     bool use_gpu = (device == "gpu");
     if (use_gpu) {

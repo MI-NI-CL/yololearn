@@ -1,0 +1,13 @@
+# X-AnyLabeling v4.0.0 自定义模型配置（识别 Gotchard）
+# 配合 runs\detect\train\weights\best.onnx 使用（YOLO26 端到端格式 [1,300,6]）
+type: yolo26
+name: gotchard_yolo26
+provider: Ultralytics
+display_name: Gotchard 模型
+model_path: C:/Users/21404/Desktop/gowork/projects/yololearn/runs/detect/train/weights/best.onnx
+conf_threshold: 0.25
+max_det: 300
+input_width: 640
+input_height: 640
+classes:
+  - Gotchard

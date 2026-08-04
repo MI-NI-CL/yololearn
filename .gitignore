@@ -48,3 +48,15 @@ test_video.mp4
 # ===== TensorRT 引擎文件（大文件，GPU 推理用）=====
 *.engine
 
+# ===== 训练工作区（大文件/临时数据，只提交脚本和空目录结构）=====
+training/raw_videos/
+training/frames/
+training/annotate/
+training/runs/
+training/models/
+training/datasets/*/images/
+training/datasets/*/labels/
+# 保留 training/scripts 下的脚本文件
+!training/scripts/
+!training/scripts/*
+

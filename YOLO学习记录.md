@@ -22,6 +22,13 @@
 | 第 11 步 | C++ 检测视频并输出带框视频（引入 OpenCV） | ✅ 完成 |
 | 第 12 步 | C++ 摄像头实时检测（补编译 OpenCV highgui 模块） | ✅ 完成 |
 | 第 13 步 | **C++ GPU 加速（TensorRT + MSVC，7.63ms）** | ✅ 完成 |
+| 第 14 步 | **C++ GPU 跟踪（track 参数，跨帧 ID 稳定）** | ✅ 完成 |
+| 第 15 步 | **图像分割（segment，描出物体轮廓）** | ✅ 完成 |
+| 第 16 步 | **图像分类（classify，整图归为某类）** | ✅ 完成 |
+| 第 17 步 | **姿态估计（pose，人体关键点骨架）** | ✅ 完成 |
+| 第 18 步 | **定向检测（obb，旋转框，航拍场景）** | 📖 了解即可 |
+| 第 19 步 | **训练入门（train，coco8 迷你数据集跑通流程）** | ✅ 完成 |
+| 第 20 步 | **迭代训练 + 自动标定（自己数据的完整流程）** | 📖 已学流程 |
 
 ---
 
@@ -402,6 +409,327 @@ cpp_yolo\build\cpp_yolo.exe 0 yolo26n.onnx cpu
 - 源码：`C:\cpp_msvc_build\tensorrt_yolo.cpp`
 - MSVC 版 exe：`C:\cpp_msvc_build\tensorrt_yolo_msvc.exe`
 - 运行：`tensorrt_yolo_msvc.exe yolo26n_sdk.engine 图片.jpg`
+
+---
+
+## ✅ 第 14 步：C++ GPU 跟踪（track 参数，跨帧 ID 稳定）
+
+**目标**：让 C++ GPU 程序在视频/摄像头里**持续跟踪每个目标**（同一人跨帧保持同一编号，而不是每帧重新认人）。
+
+**最终结果**：`tensorrt_yolo_msvc.exe` 第 5 个参数写 `track` 即开启跟踪 ✅
+
+### 🔑 为什么需要跟踪
+普通检测（detect）**每帧独立认人**：人一闪、被挡住，下一帧就被当成新的人。
+跟踪（track）给每个目标分配**稳定 ID**，跨帧记住"谁是谁"，适合数人流、车辆追踪。
+
+### 🔑 怎么做（命令）
+```powershell
+cd C:\cpp_msvc_build
+# 先加 PATH（DLL 路径）后：
+tensorrt_yolo_msvc.exe yolo26n_sdk.engine test.mp4 0.25 0 track
+```
+参数：`<engine> <输入> [conf] [classes] [track]`
+- 第 5 个参数 `track` = 开启跟踪（仅视频/摄像头，图片不支持）
+- `0` = 只跟踪 person（画面里两个人 → `person 1` / `person 2`）
+
+**应该看到什么**：框上显示 `person 编号`，不同的人颜色不同；人在画面里走动编号不变。
+
+### 🔑 实现原理（轻量 IoU 跟踪器，约 120 行已编进 exe）
+- 每帧检测完，用**框重叠度（IoU）**把本帧的框和上一帧的跟踪目标做匹配
+- 匹配上的 → 沿用旧 ID；没匹配上 → 分配新 ID；丢失超 10 帧 → 移除
+- 优点：零依赖、已编进 exe、不用重训；局限：重遮挡时可能短暂"换号"
+
+### 🔑 实测验证
+- 检测模式回归：`bus.jpg` 正常检出 4 个 person
+- 跟踪模式：60 帧测试视频里 4 个人全程保持 ID 1-4 不变 ✅
+- **用户亲手实践确认**：在自己的视频/摄像头上跑通跟踪，ID 跨帧稳定 ✅
+- ⭐ **实践中学到的点**：
+  - 用 `0` 参数（只跟踪 person）可以过滤掉不关心的物体（如画面里被误认成 `remote` 遥控器的手柄/杂物）
+  - 看到不认识的名字（如 `remote`）→ 查类别编号表即可（remote = 编号 54 遥控器）
+  - 调高 conf（如 `0.25`→`0.5`）能减少误检，只留把握大的目标
+
+### 🔑 更强的方案（Python 官方）
+要更稳的跟踪（ByteTrack/BoTSORT），用 ultralytics Python API（结果存 `runs/track/`）：
+```powershell
+cd "C:\Users\21404\Desktop\gowork\projects\yololearn"
+venv\Scripts\python -c "from ultralytics import YOLO; YOLO('yolo26m.pt').track(source='test.mp4', classes=[0], conf=0.25, persist=True, tracker='bytetrack.yaml', save=True)"
+```
+
+### 🔑 换量级（C++ GPU 侧也支持）
+4 个量级的 engine 已全部构建好（2026-08-03）：
+| engine 文件 | 大小 | 实测 bus.jpg 结果 |
+|-------------|------|------------------|
+| `yolo26n_sdk.engine` | 11MB | 5 个目标（bus conf 0.92） |
+| `yolo26s_sdk.engine` | 39MB | 5 个目标（更准） |
+| `yolo26m_sdk.engine` | 85MB | 5 个目标（bus conf 0.96） |
+| `yolo26l_sdk.engine` | 103MB | **6 个目标**（识别最准） |
+
+> 换量级 = 换命令里的 `<engine>` 文件名，其余参数不变：
+> `tensorrt_yolo_msvc.exe yolo26l_sdk.engine 视频.mp4 0.25 0 track`
+> 实测：**模型越大越准**（l 检出 n 漏掉的第 6 个目标），代价是更慢。
+
+---
+
+## ✅ 第 15 步：图像分割（segment，描出物体轮廓）
+
+**目标**：检测物体时把**轮廓也描出来**——不只是方框，而是物体边缘的精确形状（人形轮廓线）。
+
+**最终结果**：`segment` 任务跑通，图片上人和公交车被彩色轮廓描出来 ✅
+
+### 🔑 为什么值得学
+- 检测（detect）= 给"框住物体的矩形"
+- 分割（segment）= 给"物体精确的形状"（每个像素属于哪个物体）
+- 用途：抠图、测物体面积/大小、精细区域分析
+
+### 🔑 怎么做（命令）
+```powershell
+cd "C:\Users\21404\Desktop\gowork\projects\yololearn"
+venv\Scripts\yolo segment predict model=yolo11n-seg.pt source=bus.jpg
+```
+**命令拆解**：
+| 部分 | 含义 |
+|------|------|
+| `segment` | 任务 = 分割（不是 detect） |
+| `model=yolo11n-seg.pt` | 分割专用模型（**自动下载**，约 5MB） |
+
+### 🔑 核心知识点
+1. **`-seg` 结尾 = 分割专用模型**：`yolo11n-seg.pt`，和检测模型不同，自动下载一次永久使用
+2. **万能格式通用**：`yolo <任务> <动作> model=... source=...` 框架不变，detect → segment 只换任务名和模型名
+3. **输出不同**：每行多了轮廓坐标（mask 数据），保存图上是彩色轮廓而非简单红框
+4. 结果存 `runs\segment\predict-数字\`（和 detect 分开）
+
+**应该看到什么**：人和公交车被**彩色轮廓描边**，不再是简单矩形框。
+
+---
+
+## ✅ 第 16 步：图像分类（classify，整图归为某类）
+
+**目标**：判断**整张图属于什么类别**——不是"图里有啥"，而是"这张图整体是什么"。
+
+**最终结果**：`classify` 任务跑通，能输出类别置信度排名 ✅（用户实践确认）
+
+### 🔑 怎么做（命令）
+```powershell
+cd "C:\Users\21404\Desktop\gowork\projects\yololearn"
+venv\Scripts\yolo classify predict model=yolo11n-cls.pt source=bus.jpg
+```
+**命令拆解**：`classify` 任务名在 `predict` 前；`yolo11n-cls.pt` 分类专用模型（自动下载）。
+
+### 🔑 核心知识点
+1. **`cls` = classification（分类）的缩写**：官方统一后缀 `-cls`（分割是 `-seg`）。是惯例缩写（取主体辅音），不是拼写错
+2. **三个任务对比**：
+   | 任务 | 模型后缀 | 回答的问题 |
+   |------|---------|-----------|
+   | detect | 无（yolo26n） | 图里有**哪些**东西、在哪 |
+   | segment | `-seg` | 东西的**精确轮廓** |
+   | classify | `-cls` | 整张图**是什么** |
+3. **⚠️ 不能去掉 `-cls`**：检测模型和分类模型**输出格式完全不同**，用错模型会报错或结果乱。`-cls` 是分类模型的标志，必须保留
+4. **分类模型识别的类别 ≠ 检测模型**：是 ImageNet 1000 类（不是 COCO 80 类）
+
+### 🔑 实践中学到的点（用户反馈）
+- ⭐ **场景图分类效果差是正常的**：`bus.jpg` 是街道场景图（多物体），而分类模型擅长**单一主体**图（如一只猫）。场景图"是什么"很模糊，置信度自然低
+- ⭐ **想让分类准**：① 换更大的模型 `yolo11s-cls.pt`（>n）② 换单一主体图片（官方示例 `source=https://ultralytics.com/images/cat.jpg`）
+- 用户确认：效果差但能跑 ✅（原因已讲清，非故障）
+
+---
+
+## ✅ 第 17 步：姿态估计（pose，人体关键点骨架）
+
+**目标**：检测人体**关键点**（头、肩、肘、腕、膝、踝等 17 个点），连线成人形骨架。
+
+**最终结果**：`pose` 任务跑通，图片上行人身上显示骨架线条 ✅（用户实践确认）
+
+### 🔑 怎么做（命令）
+```powershell
+cd "C:\Users\21404\Desktop\gowork\projects\yololearn"
+venv\Scripts\yolo pose predict model=yolo11n-pose.pt source=bus.jpg
+```
+**命令拆解**：`pose` 任务名在 `predict` 前；`yolo11n-pose.pt` 姿态专用模型（自动下载）。
+
+### 🔑 核心知识点
+1. **pose 输出**：每个人 17 个关键点（坐标），连线成骨架，能反映人摆了什么姿势
+2. 用途：人机交互、健身动作分析、动作识别
+3. **四大任务框架齐了**：
+   | 任务 | 模型后缀 | 回答的问题 |
+   |------|---------|-----------|
+   | detect | 无（yolo26n） | 有啥、在哪 |
+   | segment | `-seg` | 精确轮廓 |
+   | classify | `-cls` | 整图是什么 |
+   | pose | `-pose` | 人的关节姿态 |
+
+### 🔑 实践中学到的点（track 简写规律）
+- ⭐ **track 是唯一能简写的任务**：`yolo track model=...`（官方简写，隐含 predict）等价于 `yolo track predict model=...`
+- **原因**：track 既是"任务"也是"动作"（隐含预测+跟踪），其他任务必须写 `任务名 predict`
+- **各任务写法**：
+  ```
+  yolo predict model=...            ← detect 可省（默认任务）
+  yolo segment predict model=...    ← 必须写 segment
+  yolo classify predict model=...   ← 必须写 classify
+  yolo pose predict model=...       ← 必须写 pose
+  yolo track model=...              ← track 可简写
+  ```
+
+---
+
+## 📖 第 18 步：定向检测（obb，旋转框，航拍场景）
+
+> 状态：**了解即可**（用户判断：日常用不上，知道概念就好）
+
+**做什么**：检测物体用**带角度的旋转框**——贴合物体朝向的斜框，而非横平竖直的矩形。
+
+**命令**：
+```powershell
+cd "C:\Users\21404\Desktop\gowork\projects\yololearn"
+venv\Scripts\yolo obb predict model=yolo11n-obb.pt source=bus.jpg
+```
+
+### 🔑 核心知识点
+1. **obb = Oriented Bounding Box**（定向检测框）
+2. **模型认 15 类，全是航拍/卫星视角**（DOTA 数据集训练）：
+   plane飞机 / ship轮船 / 储油罐 / 棒球场 / 网球场 / 篮球场 / 田径场 / 港口 / 桥 / 大车 / 小车 / 直升机 / 环岛 / 足球场 / 游泳池
+3. **为什么测 bus.jpg 只有飞机**：模型是"卫星图专家"，普通地面视角照片识别不出航拍目标，属正常（场景不匹配，非故障）
+4. **想测它的效果**：用地图软件截图俯视图（停车场/球场/公路），旋转框效果最直观
+5. **用不上很正常**：日常检测用 detect 就够；obb 是遥感/航拍专用场景
+
+### 🔑 五大任务类型全集（齐了）
+| 任务 | 模型后缀 | 回答的问题 | 用途 |
+|------|---------|-----------|------|
+| detect | 无（yolo26n） | 有啥、在哪 | 日常检测 |
+| segment | `-seg` | 精确轮廓 | 抠图/测面积 |
+| classify | `-cls` | 整图是什么 | 图片归类 |
+| pose | `-pose` | 人的关节姿态 | 动作分析 |
+| obb | `-obb` | 带角度的旋转框 | 航拍/遥感 |
+
+---
+
+## ✅ 第 19 步：训练入门（train，coco8 迷你数据集跑通流程）
+
+**目标**：用官方迷你数据集验证"训练"这套流程能走通（还没到用自己的素材，先学会"怎么训练"）。
+
+**最终结果**：coco8 训练 3 轮完成，生成 `runs\detect\train\weights\best.pt` ✅（用户实践确认）
+
+### 🔑 怎么做（命令）
+```powershell
+cd "C:\Users\21404\Desktop\gowork\projects\yololearn"
+venv\Scripts\yolo train model=yolo11n.pt data=coco8.yaml epochs=3 imgsz=640
+```
+
+### 🔑 命令拆解
+| 部分 | 含义 |
+|------|------|
+| `train` | 动作 = 训练（不是 predict） |
+| `model=yolo11n.pt` | 从预训练模型开始（**迁移学习**，省时间） |
+| `data=coco8.yaml` | 训练数据（官方迷你集，8 张图，自动下载） |
+| `epochs=3` | 训练轮数（先验证流程，只跑 3 轮） |
+| `imgsz=640` | 图片分辨率 |
+
+### 🔑 核心知识点
+1. **训练的本质**：给 YOLO 看"图片 + 标注"（这张图哪里有个物体），反复学习后掌握"物体长这样"。像教小孩认物
+2. **迁移学习**：从别人训练好的 `yolo11n.pt` 开始继续训练，比自己从零学快得多、省数据
+3. **coco8** = 官方迷你数据集（8 张图），专门用来**快速验证训练流程**，不是正式训练
+4. **训练成果**：最好的模型在 `runs\detect\train\weights\best.pt`（每次训练都放这）
+5. **训练产物**：`datasets\coco8`（数据集）、`runs\detect\train\`（结果：best.pt/last.pt/results.png/args.yaml）
+
+### 🔑 怎么读训练输出（终端那堆内容里看 2 个）
+| 输出 | 看什么 |
+|------|--------|
+| 每轮进度表的 `box_loss` 等 | **loss 是否在下降**（在降 = 模型在学） |
+| 最后的 `mAP50` | 模型准不准（0~1，越高越好） |
+
+> 其余（WARNING、wandb、版本信息等）全是无关提醒，忽略即可。
+
+### 🔑 实测数据（用户训练 3 轮）
+| 轮次 | mAP50 |
+|------|-------|
+| 第 1 轮 | 0.80 |
+| 第 2 轮 | 0.80 |
+| 第 3 轮 | 0.84 |
+> mAP50 从 0.80 升到 0.84，说明模型在学到东西。3 轮太少（验证用），正式训练通常 50-300 轮。
+
+### 📌 下一步预告
+- 以后有了**自己的照片素材**：准备"图片 + 标注" → 写数据集配置 yaml → `yolo train model=... data=my.yaml` → 得到自己的 best.pt
+- 训练好的模型可继续走「导出部署」链路（见环境安装存档.md 的"转格式部署"章节）
+
+---
+
+## 📖 第 20 步：迭代训练 + 自动标定（自己数据的完整流程）
+
+> 状态：**已实操进行中**。核心思路：先手动标一小批 → 训个"种子模型" → 用它自动标剩下 → 每轮人工修正 → 再训更好的（业界标准做法）。
+
+### 🔑 训练工作区（yololearn\training\）
+已建好的目录结构（大文件已 gitignore，只提交脚本）：
+```
+training\
+├── scripts\      → 拆帧等脚本（split_frames.py 已移入）
+├── raw_videos\   → 拍好的视频放这
+├── frames\       → 拆帧出的图片
+├── annotate\     → 标定集（手动标注的图）
+├── datasets\     → 训练集（dataset1\images{train,val} + labels{train,val} 已建好）
+├── runs\         → 每次训练的输出（train1/train2…自动生成）
+└── models\       → 训练好的 best.pt 备份（对应数据集命名）
+```
+
+### 🔑 完整流程（8 步）
+
+**① 拍视频**：对目标物体变换角度/灯光/遮挡程度拍摄，覆盖各种情况 → 放 `training\raw_videos\`
+
+**② 拆帧**（用脚本，自动间隔取帧避免帧太像）：
+```powershell
+cd "C:\Users\21404\Desktop\gowork\projects\yololearn"
+venv\Scripts\python training\scripts\split_frames.py
+```
+> 视频放 `training\raw_videos\素材.mp4`，脚本自动把每 5 帧取 1 张存到 `training\frames\`（脚本里 `EVERY_N=5` 可调）
+
+**③ 手动标 30 张**（种子数据）：用 **X-AnyLabeling**（免费，带 AI 辅助）或 LabelImg，框出物体 + 命名类别 → 存 `training\annotate\`
+
+**④ 整理成数据集**：把 30 张图和标注按 8:2 分成 train/val，分别放 `training\datasets\dataset1\{images,labels}\{train,val}`
+
+**⑤ 写数据集配置** `training\datasets\dataset1\data.yaml`：
+```yaml
+path: ../datasets/dataset1
+train: images/train
+val: images/val
+names:
+  0: 你的类别名
+```
+
+**⑥ 训练种子模型**：
+```powershell
+venv\Scripts\yolo train model=yolo11n.pt data=training/datasets/dataset1/data.yaml epochs=100 imgsz=640
+```
+
+**⑦ 用 best.pt 自动标剩余**（关键一步）——已封装成脚本：
+```powershell
+venv\Scripts\python training\scripts\auto_annotate.py
+```
+> - 脚本调用 ultralytics **官方 `auto_annotate`**（官方没有 yolo annotate 命令行，只有 Python API，故封装成脚本）
+> - 对 `training\frames\` 所有图自动打框，结果存 `training\annotate\auto\`
+> - 想调参数：改脚本顶部 SOURCE_DIR / DET_MODEL / OUT_DIR / CONF
+
+**⑧ 抽查修正 → 再训练（循环）**：自动标完的图**必须人工抽查修正**标错的框（避免错误滚雪球），加入训练集再训练一轮 → 模型越滚越准
+
+### 🔑 本次实操记录（2026-08-05）
+- ✅ **项目已迁移到纯英文路径** `C:\Users\21404\Desktop\gowork\projects\yololearn`（解决中文路径导致 YOLO 训练报错的问题；旧中文路径的坑详见第 9 步记录）
+- ✅ **手动标了 26 张** Gotchard（比计划的 30 张少，够种子模型用）
+- ✅ **划分数据集**：21 train + 5 val，图片/标注 1:1 配对
+- ✅ **训练种子模型**：`yolo26m.pt` + dataset1，50 轮，GPU 训练（CUDA:0 RTX 5060）
+  - 最终 **mAP50 = 0.502**（数据仅 21 张，效果一般属正常；正是要继续自动标定扩充数据的原因）
+  - 显存峰值显示 9G 是"含共享显存的读数"，8G 物理显存训练正常跑完（想更稳可加 `batch=8`）
+- ✅ **换用 X-AnyLabeling v4.0.0（CVHub520 分支）** 做标注：
+  - 原版 AnyLabeling v0.4.36 读不了 YOLO26 的 `[1,300,6]` onnx；X 版 v4.0.0 原生支持 YOLO26
+  - **关键坑**：yaml 的 `type` 必须写 `yolo26`（不是 yolov5），字段用 `conf_threshold`/`max_det`
+  - 关掉 `auto_switch_to_edit_mode`（设置里或 `.xanylabelingrc` 改 false）→ 画完框工具保持，不用每张重按 R
+- ✅ **用 X 版 + best.onnx 自动标注 + 手动修正**，标出 **100 张**（97 张有框 + 3 张空）
+- ✅ **建了 `json_to_yolo.py` 脚本**（把 X 版 JSON 标注转成 YOLO txt，绕开软件导出弹窗问题）
+- ✅ **数据集扩充到 123 张**（原 26 + 新 97），重新划分：**train 98 + val 25**
+- ⏳ 正在二次训练（123 张，epochs=100）
+
+### 🔑 关键要点
+- **适用前提**：你要识别的物体**不是** COCO 80 类（人/车/猫/狗…）时，才需要走"种子模型"路线；如果是 80 类，直接用官方模型自动标更快
+- ⭐ **错误会滚雪球**：每轮自动标注后必须人工抽查修正，不能直接全信
+- **训练用 GPU**：Python YOLO 侧一直是 GPU（PyTorch cu128），训练自动用 GPU（device 空 = 自动选）
+- **8GB 显存**：m 模型 + imgsz640 + batch16 接近上限，遇 OOM 优先 `batch=8`
+- **`yolo annotate` 命令行不存在**：自动标注官方只有 Python API（auto_annotate），已封装成脚本
 
 ---
 
